@@ -10,6 +10,11 @@ trade improves both teams.
 ## Scope and Current Assumptions
 
 - The scoring format is full point per reception (full PPR).
+- ESPN is the supported fantasy platform.
+- Data collection will use the Python `espn-api` package where it provides the
+  required player and statistical data.
+- Users will enter both fantasy rosters manually; direct synchronization with an
+  ESPN league is outside the school-project scope.
 - The model predicts future weekly fantasy scores.
 - A player's rest-of-season value is derived from their predicted scores over
   the remaining weeks of the season.
@@ -37,6 +42,31 @@ trade improves both teams.
 
 ## Data Outline
 
+### Primary Collection Interface
+
+Use the Python `espn-api` package to retrieve available ESPN fantasy football
+player and statistical data. Depending on package support, this may include:
+
+- Matchups and box scores
+- Player information and available statistics
+- ESPN projections and fantasy point totals
+
+The package wraps ESPN's unofficial and undocumented Fantasy API, so collection
+code should isolate the dependency behind a small project module and preserve
+raw responses or normalized snapshots when practical. This reduces the impact
+of upstream endpoint or package changes.
+
+The project will not connect to a user's private ESPN league or collect ESPN
+credentials. If `espn-api` still requires a league context to access the desired
+player pool or history, development should use an appropriate public league or
+fixture and document that limitation.
+
+Before modeling begins, create a small data-availability experiment to verify
+which historical weekly fields `espn-api` provides for the selected league and
+seasons. If it does not expose enough historical features to train the weekly
+prediction model, document and add a separate approved football-statistics
+source rather than scraping data implicitly.
+
 ### Candidate Inputs
 
 - Historical weekly fantasy points
@@ -48,7 +78,8 @@ trade improves both teams.
 - Team offensive context
 - Opponent and matchup information
 - Injury status and bye weeks, if reliable historical data is available
-- Current fantasy rankings or expert projections for comparison
+- ESPN fantasy rankings or projections for comparison, when available through
+  `espn-api`
 
 ### Target Variable
 
@@ -106,11 +137,13 @@ those adjustments are outside the initial scope.
 
 ## Team-Strength Calculation
 
-1. Place eligible players into the lineup that maximizes projected starter
+1. Accept two manually entered rosters and identify each player's eligible
+   positions.
+2. Place eligible players into the lineup that maximizes projected starter
    value while respecting roster-position rules.
-2. Give each starter 100% of their rest-of-season value.
-3. Give each bench player 66.7% of their rest-of-season value.
-4. Sum the weighted player values to calculate team strength.
+3. Give each starter 100% of their rest-of-season value.
+4. Give each bench player 66.7% of their rest-of-season value.
+5. Sum the weighted player values to calculate team strength.
 
 ```text
 team_strength = sum(starter_values) + (2 / 3) * sum(bench_values)
@@ -144,6 +177,7 @@ zero. The output should include:
 - Test full-PPR scoring calculations.
 - Test feature calculations without future-data leakage.
 - Test predicted weekly-score aggregation.
+- Test manual roster parsing and player matching.
 - Test starter and bench assignment under roster constraints.
 - Test the two-thirds bench weighting.
 - Test team strength before and after a trade.
@@ -185,19 +219,26 @@ tests/             Automated tests mirroring src/
 ## Initial Implementation Milestones
 
 1. Define league roster slots and exact full-PPR scoring rules.
-2. Select and document data sources and licensing constraints.
-3. Build and validate a small player-week dataset.
-4. Implement a simple rolling-average baseline.
-5. Train and compare the first regression models.
-6. Implement rest-of-season aggregation and lineup assignment.
-7. Implement weighted team strength and trade deltas.
-8. Produce an end-to-end example using two sample rosters.
-9. Add automated tests and document reproducible commands.
+2. Add `espn-api` to the dependency manifest and implement a minimal ESPN league
+   data-collection experiment that does not require private credentials.
+3. Audit the ESPN fields and historical seasons available through `espn-api`.
+4. Document any additional data source needed for historical model features and
+   its licensing constraints.
+5. Build and validate a small player-week dataset.
+6. Implement a simple rolling-average baseline.
+7. Train and compare the first regression models.
+8. Implement rest-of-season aggregation and lineup assignment.
+9. Implement weighted team strength and trade deltas.
+10. Produce an end-to-end example using two sample rosters.
+11. Add automated tests and document reproducible commands.
 
 ## Open Decisions
 
-- Which fantasy platform or exact scoring rules will define passing, rushing,
-  receiving, kicking, and defensive points?
+- Does `espn-api` expose enough player history without private-league access, or
+  will the experiment require a public reference league?
+- What manual roster input format will be used: a Python structure, CSV file, or
+  simple command-line prompts?
+- What exact project-wide full-PPR scoring configuration will be enforced?
 - Which roster slots and lineup limits will the calculator support?
 - Does the rest-of-season horizon include fantasy playoffs, and should playoff
   weeks receive different weights?
