@@ -250,3 +250,66 @@ tests/             Automated tests mirroring src/
   beneficial rather than effectively even?
 - Should the two-thirds bench weight be fixed, tuned using historical outcomes,
   or compared against several candidate weights?
+- What year does the course's October 9 abstract deadline refer to, and is that
+  deadline still applicable? Confirm the date in the current course schedule.
+- Which machine-learning topics were covered in lectures, and what specific
+  project method or question should be framed as extending them?
+- Are there report formatting, citation-style, or page-count constraints beyond
+  the assignment's guidance to write an approximately 15-page research-style
+  report?
+- Does the instructor provide a detailed grading rubric or weights for report
+  sections and project components?
+- Is any disclosure of AI-assisted tools required beyond the assignment's
+  statement that such tools are permitted?
+
+## Recommended Defaults
+
+These are project recommendations, not confirmed course requirements. Keep
+course-specific items open until they are checked against the current course
+materials.
+
+- **Data source:** First run the planned `espn-api` availability experiment.
+  If it cannot provide enough historical player-week data without private
+  credentials, use a public, documented football-statistics source approved for
+  the project and record its provenance and license.
+- **Roster input:** Use a small CSV with one row per player and fields for team,
+  player name, and position. Resolve players against a consistent player
+  dataset and report ambiguous or unmatched names rather than silently
+  guessing.
+- **Scoring:** Fix the initial project to full PPR and document the scoring
+  assumptions explicitly. Do not imply support for league-specific scoring
+  variations unless they are implemented and tested.
+- **Roster slots:** Start with one documented lineup configuration:
+  1 QB, 2 RB, 2 WR, 1 TE, 1 RB/WR/TE FLEX, 1 D/ST, and 1 K. Treat these as
+  project assumptions, not universal ESPN defaults.
+- **Prediction horizon:** Sum predictions for the remaining regular-season
+  weeks in the selected dataset. Exclude custom fantasy-playoff schedules from
+  the first version and state that limitation.
+- **Injuries and bye weeks:** Score a bye week as zero. Use injury information
+  only if a reliable status is available before the predicted week; otherwise,
+  do not invent a missed-game probability and describe injury risk as a
+  limitation.
+- **Trade classification:** Treat a zero team delta as neutral. Call a trade
+  mutually beneficial only when both team deltas are strictly positive. Show
+  both raw deltas and avoid a separate "meaningfully beneficial" threshold
+  until uncertainty is estimated from validation results.
+- **Bench weight:** Keep two-thirds as the initial comparison value, but test
+  it against a few alternatives (for example 0, 0.5, and 1.0) and report
+  whether the trade conclusion changes.
+- **Abstract deadline:** Check the current course schedule or ask the
+  instructor to confirm the year and whether October 9 is still applicable;
+  do not infer a deadline year from the screenshot.
+- **Lecture alignment:** Check the syllabus and frame the contribution around
+  an appropriate comparison, such as a more advanced regression model against
+  a simple baseline. Do not claim that a method extends lecture material until
+  the covered topics are confirmed.
+- **Report format:** Target approximately 15 pages and include the listed
+  research-article sections. Follow any official course template if one exists;
+  confirm citation style and whether references count toward the page target.
+- **Grading rubric:** Look for a rubric in the course site and ask the
+  instructor if none is available. Until then, organize the report around the
+  stated deliverables and do not invent grading weights.
+- **AI disclosure:** Although the screenshot permits AI-assisted tools,
+  confirm whether the course requires disclosure. In the absence of a
+  conflicting policy, include a brief factual note describing any AI
+  assistance used.
