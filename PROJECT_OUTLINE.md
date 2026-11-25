@@ -80,9 +80,52 @@ weeks; the canceled 2022 Bills-Bengals Week 17 matchup is scored as zero.
 Missing player rows are filled with zero only when a weekly roster confirms the
 player was on a regular-season roster with ACT, INA, or RES status. Development
 and cut players are excluded from this zero-fill universe. D/ST bye weeks are
-added as explicit zero-score rows. Historical rankings remain separate because
-their scrape dates do not yet establish a leakage-safe player-week alignment.
-Generated raw and processed datasets are not committed.
+added as explicit zero-score rows. Historical rankings remain separate in the
+Step 2 output and are joined as-of the prediction cutoff in Step 3. Generated
+raw and processed datasets are not committed.
+
+### Step 3: Leakage-Safe Features
+
+Build historical features from the cleaned player-week dataset:
+
+```bash
+python -m src.data.collect --seasons 2020
+python -m src.data.clean --seasons 2020
+python -m src.features.build --seasons 2021 2022 2023 2024 2025 --history-seasons 2020
+```
+
+The output is `data/processed/player_week_features_<seasons>.parquet`.
+`target_full_ppr_points` is separate from the allowlisted `FEATURE_COLUMNS`;
+current-week stat components are not included as predictors. Player features
+include prior-week scores and usage, rolling 3- and 5-player-week averages, and
+current-season-to-date averages. Prior-week and rolling player histories carry
+across seasons; the season-to-date average resets at each season boundary. The
+season immediately before the target range is loaded as history-only input and
+is not included in the output. Players without earlier rows have null
+historical averages and a zero history count. Explicit zero-score player weeks
+are included in these averages.
+
+Matchup features are joined from the NFL schedule. They summarize the
+opponent's prior 3 and 5 games: passing and rushing yards allowed and points
+allowed by its defense. Opponent offensive passing/rushing yards and points
+scored are also summarized for D/ST forecasts. All matchup history is shifted
+before the prediction week; Week 1 matchup history is null rather than using
+prior-season games.
+
+The feature builder adds the latest same-season FantasyPros positional PPR rank
+available before the week's first kickoff. It uses `wp` weekly pages and `rp`
+redraft PPR pages for QB, RB, WR, TE, K, and D/ST, matches player IDs through
+the crosswalk (team IDs for D/ST), and records whether each rank came from the
+weekly or redraft series. If both series have a snapshot on the same date, the
+weekly rank is preferred. Ranking snapshots are date-only, so snapshots from
+the kickoff date are excluded to avoid using a ranking that may have been
+published after kickoff. Rows without an eligible, mapped rank remain missing.
+
+Injury report and practice statuses use the latest non-null values timestamped
+strictly before the first scheduled regular-season kickoff of the week. The NFL
+schedule's kickoff time is interpreted as Eastern Time and injury timestamps as
+UTC. Missing reports and statuses remain unknown rather than being labeled
+healthy. Injury data is cached locally under `data/raw/`.
 
 ### Candidate Inputs
 
@@ -94,8 +137,9 @@ Generated raw and processed datasets are not committed.
 - Player position, age, and experience
 - Team offensive context
 - Opponent and matchup information
-- Injury status and bye weeks, if reliable historical data is available
-- Historical FantasyPros rankings, when available through `nflreadpy`
+- Pre-kickoff injury and practice statuses, with missing reports kept unknown
+- Same-season, pre-kickoff FantasyPros weekly PPR positional rankings, with
+  redraft PPR rankings as a fallback
 
 ### Target Variable
 
@@ -283,10 +327,9 @@ course-specific items open until they are checked against the current course
 materials.
 
 - **Data source:** Use `nflreadpy` for public nflverse player-week stats,
-  FantasyPros historical rankings, and player-ID mappings. No ESPN league ID or
-  private credentials are needed. Confirm source coverage, scoring fields, and
-  data provenance before modeling; leave rankings optional if coverage is
-  incomplete.
+  FantasyPros historical rankings, player-ID mappings, and weekly injury
+  reports. No ESPN league ID or private credentials are needed. Preserve
+  missing rankings and reports when the historical sources have gaps.
 - **Roster input:** Use a small CSV with one row per player and fields for team,
   player name, and position. Resolve players against a consistent player
   dataset and report ambiguous or unmatched names rather than silently

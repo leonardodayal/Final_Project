@@ -20,6 +20,11 @@ Run modules from the repository root, for example
 `python -m src.data.collect --seasons 2021 2022`, so imports behave
 consistently. After collecting weekly stats, build the cleaned player-week
 dataset with `python -m src.data.clean --seasons 2021 2022`.
+Collect and clean the history-only season first with
+`python -m src.data.collect --seasons 2020` and
+`python -m src.data.clean --seasons 2020`.
+Build leakage-safe prediction features with
+`python -m src.features.build --seasons 2021 2022 --history-seasons 2020`.
 
 ## Coding Style & Naming Conventions
 
