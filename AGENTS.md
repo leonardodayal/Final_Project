@@ -27,6 +27,11 @@ Build leakage-safe prediction features with
 `python -m src.features.build --seasons 2021 2022 --history-seasons 2020`.
 Train and evaluate weekly-score regression models with
 `python -m src.models.train --feature-path data\processed\player_week_features_2021-2022-2023-2024-2025.parquet --output-dir models`.
+Refresh current-season player stats and rankings with
+`python -m src.data.collect --seasons 2026`, then generate live weekly
+projections with `python -m src.models.predict --season 2026`. Generate the
+separate strict-preseason Weeks 1–18 forecast with
+`python -m src.models.predict --season 2026 --strict-preseason`.
 
 ## Coding Style & Naming Conventions
 

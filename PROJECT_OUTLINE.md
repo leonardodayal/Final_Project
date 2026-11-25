@@ -103,7 +103,10 @@ across seasons; the season-to-date average resets at each season boundary. The
 season immediately before the target range is loaded as history-only input and
 is not included in the output. Players without earlier rows have null
 historical averages and a zero history count. Explicit zero-score player weeks
-are included in these averages.
+from observed games are included. Synthetic roster-zero and bye rows remain
+zero-point targets but are excluded from player-performance lag and rolling
+features; this prevents non-participation from being treated as an observed
+performance.
 
 Matchup features are joined from the NFL schedule. They summarize the
 opponent's prior 3 and 5 games: passing and rushing yards allowed and points
@@ -186,13 +189,80 @@ Use the 2021–2023 seasons for training, 2024 for validation and model selectio
 then refit the selected model on 2021–2024 and evaluate once on the held-out
 2025 season. Report MAE and RMSE overall and by position; compare the held-out
 results with the simple baselines. Do not select or tune a model based on 2025
-test results.
+test results. The score regressor is trained on observed-stat weeks only, and
+its position-level calibration is learned from 2024. A player's if-active score
+is used at full value when they rank within the configured starter slots for
+their team and position; other rostered players receive half. Starter slots are
+1 QB, 3 RB, 4 WR, 2 TE, 1 K, and 1 D/ST per team. FantasyPros positional rank
+determines the slots; unranked players fill vacancies by conditional score.
+This is a ranking-based approximation, not an official depth chart.
 
 Run the pipeline with
 `python -m src.models.train --feature-path data\processed\player_week_features_2021-2022-2023-2024-2025.parquet --output-dir models`.
 It writes a serialized model, a JSON metrics report, and validation/test
 predictions under `models/`. The reference run's three small artifacts are
 checked in; future generated files remain ignored by default.
+
+### Step 5: Live Weekly Projections
+
+Refresh current-season player statistics and ranking snapshots, then generate
+forecasts for each fully unplayed regular-season week:
+
+```bash
+python -m src.data.collect --seasons 2026
+python -m src.models.predict --season 2026
+```
+
+The prediction command refreshes schedules, weekly rosters, team statistics,
+and injury reports from `nflreadpy`. It uses the latest eligible roster
+snapshot, the Step 4 model artifact, and rankings no later than its UTC
+forecast cutoff. It includes rostered fantasy positions and all D/ST teams,
+forces bye-week scores to zero, and excludes incomplete or already-started
+weeks.
+
+For every future week, player and matchup history is based only on games
+completed by the forecast cutoff; projected future scores are not fed back as
+if they were observed. The latest known history is held fixed across the
+forecast horizon, and forecasts should be refreshed after new games. Injury
+features remain unknown when the feed lacks verifiable timestamps. The model
+artifact is fitted on 2021–2024. After correcting synthetic zero-fill history,
+the latest model selected Ridge regression with injury features. Its 2025
+starter-weighted MAE/RMSE are 3.644/5.289 versus 4.259/5.938 for the
+rolling-5-week baseline, evaluated using the same full-or-half starter rule.
+The MLP candidate still reaches its iteration limit; it was not selected.
+Treat forecasts as an initial benchmark, not a guarantee of predictive
+improvement. Negative conditional QB scores are floored at zero; non-QB
+conditional scores are unchanged.
+
+The command writes `models/weekly_predictions_<season>.parquet` with one row
+per player/week and a JSON metadata file recording the as-of time, completed
+week, roster snapshot, model, and data limitations. The output includes
+`predicted_full_ppr_points` (the starter-weighted score),
+`predicted_full_ppr_points_if_active`, `predicted_starter`, and
+`starter_score_multiplier`. A predicted starter receives a multiplier of 1.0;
+other players receive 0.5. These generated forecasts are ignored by Git by
+default.
+
+### Strict Preseason Forecast
+
+For a full-season forecast that ignores all 2026 results, run:
+
+```bash
+python -m src.models.predict --season 2026 --strict-preseason
+```
+
+This mode uses the Week 1 roster snapshot for the full player pool, all 18
+weeks of schedule matchups, player history through 2025, and FantasyPros
+snapshots strictly before the first 2026 regular-season date. It does not load
+2026 player stats, team stats, or injury reports; schedule scores are masked
+before feature generation. Bye-week predictions are zero. Since no 2026 results
+are used, in-season matchup history and injury features are unknown, and later
+roster transactions are not reflected. The same ranking-based starter rule is
+applied; negative conditional QB scores are floored at zero.
+
+The output is separate from the live forecast:
+`models/weekly_predictions_2026_preseason.parquet` and its JSON metadata file.
+Both are ignored by Git by default.
 
 ## Rest-of-Season Player Value
 
@@ -202,9 +272,10 @@ For player \(p\), define rest-of-season value as:
 ROS_value(p) = sum(predicted_weekly_score(p, week))
 ```
 
-The sum covers only the remaining fantasy-relevant weeks. A later iteration may
-adjust this value for uncertainty, injury risk, or playoff-week importance, but
-those adjustments are outside the initial scope.
+The default sum uses the starter-weighted `predicted_full_ppr_points`, not the
+if-active-only column. It covers only the remaining fantasy-relevant weeks. A
+later iteration may adjust this value for uncertainty, injury risk, or
+playoff-week importance, but those adjustments are outside the initial scope.
 
 ## Team-Strength Calculation
 

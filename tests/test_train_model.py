@@ -35,6 +35,7 @@ def _feature_row(season: int, index: int) -> dict:
         "is_bye_week": False,
         "is_cancelled_game_week": False,
         TARGET_COLUMN: float(index + season % 10),
+        "target_stats_observed": index % 2 == 0,
     }
     for column in FEATURE_COLUMNS:
         if column in CATEGORICAL_FEATURES:
@@ -85,6 +86,12 @@ def test_training_uses_chronological_splits_and_saves_results(
         "test": 2025,
     }
     assert report["test"]["selected_model_metrics"]["overall"]["rows"] == 4
+    assert (
+        report["validation"]["conditional_score_metrics"]["overall"]["rows"]
+        == 2
+    )
+    assert "target_stats_observed" not in report["selected_model"]["feature_columns"]
+    assert report["starter_rule"]["backup_score_multiplier"] == 0.5
     assert (tmp_path / "models" / "weekly_score_model.joblib").exists()
     assert (tmp_path / "models" / "step4_metrics.json").exists()
     predictions = pl.read_parquet(tmp_path / "models" / "step4_predictions.parquet")
@@ -92,3 +99,8 @@ def test_training_uses_chronological_splits_and_saves_results(
         4,
         4,
     ]
+    assert {
+        "conditional_score_prediction",
+        "predicted_starter",
+        "starter_score_multiplier",
+    }.issubset(predictions.columns)

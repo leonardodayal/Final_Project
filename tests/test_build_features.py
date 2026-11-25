@@ -198,6 +198,7 @@ def test_features_use_only_prior_player_and_opponent_games() -> None:
     ] == 200.0
     assert set(FEATURE_COLUMNS).issubset(features.columns)
     assert "target_full_ppr_points" not in FEATURE_COLUMNS
+    assert "target_stats_observed" not in FEATURE_COLUMNS
     assert "passing_yards" not in FEATURE_COLUMNS
 
 
@@ -277,6 +278,80 @@ def test_player_history_carries_forward_but_season_average_resets() -> None:
     assert player["feature_previous_week_score"] == 15.0
     assert player["feature_score_avg_last_3_weeks"] == 15.0
     assert player["feature_score_avg_season_to_date"] is None
+
+
+def test_synthetic_zeros_are_targets_but_not_performance_history() -> None:
+    schedules = pl.DataFrame(
+        [
+            {
+                "season": 2024,
+                "week": week,
+                "game_id": f"buf-ari-{week}",
+                "game_type": "REG",
+                "home_team": "BUF",
+                "away_team": "ARI",
+                "home_score": 24,
+                "away_score": 17,
+            }
+            for week in range(1, 5)
+        ]
+    )
+    team_stats = pl.DataFrame(
+        [
+            _team_game(
+                week,
+                f"buf-ari-{week}",
+                team,
+                opponent,
+                passing_yards,
+                rushing_yards,
+            )
+            for week in range(1, 5)
+            for team, opponent, passing_yards, rushing_yards in (
+                ("BUF", "ARI", 200, 80),
+                ("ARI", "BUF", 150, 70),
+            )
+        ]
+    )
+    player_weeks = pl.DataFrame(
+        [
+            _player_week(1, 10.0),
+            _player_week(
+                2,
+                0.0,
+                stats_observed=False,
+                score_source="roster_zero",
+                carries=None,
+                targets=None,
+                receptions=None,
+                attempts=None,
+                passing_yards=None,
+                rushing_yards=None,
+                receiving_yards=None,
+            ),
+            _player_week(3, 0.0),
+            _player_week(4, 30.0),
+            *[
+                _dst_week(week, team, points_allowed)
+                for week in range(1, 5)
+                for team, points_allowed in (("BUF", 17), ("ARI", 24))
+            ],
+        ]
+    )
+
+    features = build_feature_dataset(player_weeks, team_stats, schedules)
+    weeks = features.filter(pl.col("player_id") == "player-1").sort("week")
+    _, week_two, week_three, week_four = weeks.to_dicts()
+
+    assert week_two["target_full_ppr_points"] == 0.0
+    assert week_two["target_stats_observed"] is False
+    assert week_three["feature_previous_week_score"] is None
+    assert week_three["feature_score_avg_last_3_weeks"] == 10.0
+    assert week_three["feature_score_avg_season_to_date"] == 10.0
+    assert week_three["feature_targets_avg_last_3_weeks"] == 4.0
+    assert week_four["feature_previous_week_score"] == 0.0
+    assert week_four["feature_score_avg_last_3_weeks"] == 5.0
+    assert week_four["feature_score_avg_season_to_date"] == 5.0
 
 
 def test_missing_player_id_keeps_availability_flags_false() -> None:

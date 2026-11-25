@@ -376,11 +376,16 @@ def _player_history_features(
 
     for source_column, feature_name in PLAYER_HISTORY_METRICS.items():
         value_column = f"_history_{feature_name}"
+        observed_stat = pl.col("stats_observed")
         if source_column == "full_ppr_points":
-            value = pl.col(source_column).cast(pl.Float64)
+            value = (
+                pl.when(observed_stat)
+                .then(pl.col(source_column).cast(pl.Float64))
+                .otherwise(None)
+            )
         else:
             value = (
-                pl.when(pl.col("position") != "DST")
+                pl.when((pl.col("position") != "DST") & observed_stat)
                 .then(pl.col(source_column).cast(pl.Float64).fill_null(0))
                 .otherwise(None)
             )
@@ -407,9 +412,20 @@ def _player_history_features(
             )
             feature_columns.append(rolling_name)
 
-        prior_sum = pl.col(value_column).cum_sum().shift(1).over(season_group)
+        prior_sum = (
+            pl.col(value_column)
+            .fill_null(0)
+            .cum_sum()
+            .shift(1)
+            .over(season_group)
+        )
         prior_count = (
-            pl.col(value_column).cum_count().shift(1).over(season_group)
+            pl.col(value_column)
+            .is_not_null()
+            .cast(pl.UInt32)
+            .cum_sum()
+            .shift(1)
+            .over(season_group)
         )
         season_average = (
             pl.when(prior_count > 0)
@@ -515,9 +531,12 @@ def _team_history_features(
     ).item():
         raise ValueError("Weekly team stats are missing opponent yardage.")
 
+    # Forecast placeholders provide target-week rows, but are still lagged.
     dst_points = player_weeks.filter(
         (pl.col("position") == "DST")
-        & (pl.col("score_source") == "nflverse_team_stats")
+        & pl.col("score_source").is_in(
+            ["nflverse_team_stats", "forecast_context"]
+        )
     ).select("season", "week", "team", "points_allowed")
     if _has_duplicate_keys(dst_points, ["season", "week", "team"]):
         raise ValueError("D/ST data contains duplicate team-week rows.")
@@ -718,6 +737,7 @@ def build_feature_dataset(
         "is_bye_week",
         "is_cancelled_game_week",
         pl.col("full_ppr_points").alias("target_full_ppr_points"),
+        pl.col("stats_observed").alias("target_stats_observed"),
         *[pl.col(column) for column in feature_columns if column not in {
             "week",
             "position",
@@ -848,9 +868,12 @@ def build_features(
         "feature_columns": list(FEATURE_COLUMNS),
         "target_column": "target_full_ppr_points",
         "history_policy": (
-            "Lagged and rolling player features include all earlier available "
-            "seasons; season-to-date averages reset each season. Matchup "
-            "features use only earlier games in the current season."
+            "Lagged and rolling player-performance features use observed stat "
+            "rows only; synthetic roster-zero and bye rows remain as zero "
+            "targets but are excluded from performance history. Player "
+            "history carries across seasons, while season-to-date averages "
+            "reset each season. Matchup features use only earlier games in "
+            "the current season."
         ),
         "ranking_policy": (
             "Latest same-season FantasyPros positional PPR ranking strictly "

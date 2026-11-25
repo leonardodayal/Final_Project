@@ -68,6 +68,10 @@
   player-week averages, current-season-to-date averages, and prior-history
   counts. Previous-week and rolling histories carry across season boundaries;
   season-to-date averages reset at each season.
+- Player-performance features use observed stat rows only. Synthetic
+  roster-zero and bye rows remain zero-point targets but are excluded from
+  lagged and rolling performance metrics; observed zero-point performances
+  are retained.
 - Matchup features use only the opponent's prior games: passing/rushing yards
   and points allowed by its defense, plus opponent offensive production for
   D/ST forecasts. Player weeks and team-game history are shifted before the
@@ -91,11 +95,11 @@
   score baselines against Ridge regression and a 32-unit MLP, with/without
   injury features, using 2021–2023 training, 2024 validation, and a final
   2025 test. The winning validation candidate is refit on 2021–2024.
-- The full data run selected Ridge (`alpha=10`, injury features included).
-  Validation MAE/RMSE were 3.429/5.222; 2025 test MAE/RMSE were 4.060/5.872.
-  The selected model beat the best validation baseline by MAE, but its 2025
-  test MAE was worse than the rolling 3-/5-week baselines (3.407/3.407).
-  Preserve this holdout result; do not retune against 2025.
+- After excluding synthetic zero-fill rows from player-performance history,
+  the full data run selected the 32-unit MLP with injury features. Validation
+  MAE/RMSE were 3.443/5.302; 2025 test MAE/RMSE were 3.361/5.243. Test MAE
+  beat the rolling 3-/5-week baselines (4.585/4.498). The MLP still reached
+  its 100-iteration limit without convergence; do not retune against 2025.
 - Step 4 uses a training-fitted preprocessing pipeline: numeric median
   imputation and standardization, categorical imputation and one-hot encoding.
   The reference model, metrics, and prediction artifacts are included under
@@ -105,6 +109,76 @@
   `src/models/` remains trackable.
 - Added an end-to-end Step 4 regression test for chronological splits and
   artifact generation. It shortens MLP iterations for test speed.
+- Implemented live Step 5 forecasting in `src/models/predict.py`. It refreshes
+  2026 weekly rosters, team stats, schedules, and injuries; requires collected
+  player stats and FantasyPros rankings; filters to fully completed weeks;
+  and forecasts every fully unplayed week after the UTC as-of time.
+- At the 2026-11-25 07:22 UTC run, the current data had completed Week 11,
+  Week 12 rosters, and future schedule Weeks 12–18. The forecast output has
+  4,634 rows (662 per week), with 125 bye rows forced to exactly zero and no
+  duplicate player-week keys.
+- Step 5 generates each week's player and matchup features from observed
+  player/team history only through Week 11. It does not recursively treat
+  predicted scores as observed results; that recent-history snapshot is held
+  fixed across the remaining weeks. It uses the Step 4 model artifact trained
+  on 2021–2024, and ranking snapshots are capped at the forecast as-of date.
+- The 2026 injury feed has no `date_modified` timestamp, so 2026 injury
+  features remain unknown. Forecast Parquet and JSON outputs are local under
+  the ignored `models/` directory.
+- Added Step 5 tests for completed-week detection, future roster/bye/D/ST row
+  construction, and matching predictions back to player keys.
+- Fixed player-performance history so rows with `stats_observed=False`
+  contribute neither zero scores nor zero usage to lag, rolling, or
+  season-to-date performance features. Their zero target remains intact, and
+  actual observed zero-point games still count in history.
+- Josh Allen's 2025 Week 18 `roster_zero` row was the trigger: its zero had
+  become the Week 1 2026 previous-score feature. After rebuilding features and
+  retraining, his strict-preseason Week 1 forecast increased from 4.5 to 15.9
+  points and Week 4 from 4.1 to 12.8.
+- Rebuilt the checked-in Step 4 model, metrics, and prediction artifacts, and
+  regenerated both live and strict-preseason 2026 forecasts with the updated
+  model. The strict-preseason output still has 12,042 rows (669 per week),
+  unique player-week keys, and exact zero bye predictions.
+- Added `--strict-preseason` for a separate 2026 Weeks 1–18 forecast. It uses
+  the Week 1 roster snapshot, FantasyPros snapshots strictly before the
+  September 9 opening date, and player history through 2025. It does not load
+  2026 player stats, team stats, or injuries; all 2026 schedule scores are
+  masked before feature generation.
+- The strict-preseason output is `models/weekly_predictions_2026_preseason.parquet`
+  with a matching JSON metadata file. It has 12,042 rows (669 per week), 18
+  forecast weeks, no duplicate player-week keys, and all 669 bye rows have
+  zero predictions. Negative weekly QB predictions are floored at zero; other
+  positions are unchanged. The existing live output file remains separate.
+- Preseason matchup-history and injury features are unknown, and the fixed
+  Week 1 roster does not reflect later transactions.
+- The score model trains only on `target_stats_observed=True`; position-score
+  calibration uses 2024, and the held-out 2025 season remains untouched by
+  model selection.
+- Replaced the participation-probability multiplier with the requested
+  ranking-based role rule: per team, top 1 QB, 3 RB, 4 WR, 2 TE, 1 K, and
+  1 D/ST receive full if-active scores; others receive half. Unranked players
+  fill open slots by descending conditional score. This approximates a depth
+  chart using FantasyPros position ranks; it is not an official starter feed.
+- Forecast outputs now expose `predicted_full_ppr_points`,
+  `predicted_full_ppr_points_if_active`, `predicted_starter`, and
+  `starter_score_multiplier`. The first is the requested full-or-half score.
+- The latest selected candidate is `ridge_alpha_10_with_injury`. Validation
+  MAE/RMSE are 3.861/5.446; held-out 2025 MAE/RMSE are 3.644/5.289 versus
+  4.259/5.938 for the rolling-5-week baseline. MLP candidates still emit
+  max-iteration warnings but were not selected.
+- Rebuilt the model artifacts and regenerated live 2026 Weeks 12–18 (4,634
+  rows) and strict-preseason Weeks 1–18 (12,042 rows). Both have unique
+  player-week keys, zero bye scores, and starter counts consistent with the
+  configured team-position slots. Strict-preseason Week 1 gives Josh Allen
+  14.84 points and Joe Burrow 17.96 points; both are ranked starters.
+- Full test suite passes (22 tests); `git diff --check` passes.
+- Files changed in this milestone: `AGENTS.md`, `HANDOFF.md`,
+  `PROJECT_OUTLINE.md`, `models/step4_metrics.json`,
+  `models/step4_predictions.parquet`, `models/weekly_score_model.joblib`,
+  `src/features/build.py`, `src/models/train.py`, `src/models/predict.py`,
+  `src/models/roles.py`, `tests/test_build_features.py`,
+  `tests/test_train_model.py`, and `tests/test_predict.py`. Generated
+  2026 forecast Parquet/JSON files remain Git-ignored.
 
 ## Verification
 
@@ -169,11 +243,37 @@
   (1 test); `.\.venv\Scripts\python.exe -m pytest -q` passes (15 tests).
 - `.\.venv\Scripts\python.exe -m src.models.train --feature-path
   data\processed\player_week_features_2021-2022-2023-2024-2025.parquet
-  --output-dir models` completed. It selected `ridge_alpha_10_with_injury`,
-  with validation MAE 3.429 and 2025 test MAE 4.060. The rolling 3-/5-week
-  baselines scored test MAE 3.407/3.407, so the selected model did not beat
-  those baselines on the held-out season. Both MLP candidates reached the
-  100-iteration limit without convergence.
+  --output-dir models` completed after the history fix. It selected
+  `mlp_32_alpha_0.001_with_injury`, with validation MAE/RMSE 3.443/5.302 and
+  2025 test MAE/RMSE 3.361/5.243. Rolling 3-/5-week baseline test MAEs were
+  4.585/4.498. The MLP reached its 100-iteration limit without convergence.
+- `.\.venv\Scripts\python.exe -m src.models.predict --season 2026` completed
+  at 2026-11-25 07:22 UTC. It generated forecasts for Weeks 12–18, 4,634
+  rows total. Audit confirmed 662 rows per week, 125 bye-week rows with zero
+  predictions, no non-bye rows missing opponents, and no duplicate player-week
+  keys.
+- The prediction artifact records the missing 2026 injury timestamp and the
+  frozen-through-Week-11 history policy in
+  `models/weekly_predictions_2026.json`.
+- `.\.venv\Scripts\python.exe -m src.models.predict --season 2026
+  --strict-preseason` completed. It generated 12,042 predictions for Weeks
+  1–18 using only Week 1 rosters, pre-opening rankings, and player history
+  through 2025. Metadata records an exclusive ranking cutoff before
+  2026-09-09 and confirms that injury and 2026 matchup-history features are
+  excluded/unknown.
+- The strict-preseason audit found 669 rows per week, 669 bye rows with exact
+  zero predictions, no non-bye candidates missing opponents, and no duplicate
+  player-week keys. A regression test verifies schedule scores are masked and
+  same-opening-day rank snapshots are excluded.
+- Rebuilt the 56,952-row feature set with
+  `.\.venv\Scripts\python.exe -m src.features.build --seasons 2021 2022
+  2023 2024 2025 --history-seasons 2020`.
+- Regenerated the live 2026 forecast (Weeks 12–18, 4,634 rows) and strict
+  preseason forecast (Weeks 1–18, 12,042 rows) using the retrained model.
+- `.\.venv\Scripts\python.exe -m pytest -q` passes (20 tests), including a
+  regression test that preserves synthetic zero targets but excludes them
+  from player-performance history;
+  `.\.venv\Scripts\python.exe -m pip check` reports no broken requirements.
 - `git diff --check` passes.
 
 ## Known Issues
@@ -193,14 +293,31 @@
   history season is supplied. Season-to-date means and team matchup history
   reset each season. The default CLI requires the season immediately preceding
   the target range as a history-only cleaned input.
-- Player rolling windows use prior player-week rows (including explicit zero
-  weeks); matchup windows use prior team games.
+- Player rolling windows use observed stat weeks only; target zero-fill rows
+  are retained for actual fantasy outcomes. Matchup windows use prior team
+  games.
 - The manual roster input format has not been selected.
 - Roster slots and prediction horizon have not been finalized.
-- The Step 4 Ridge model did not outperform the rolling-score baselines on the
-  held-out 2025 season; treat it as an initial benchmark, not evidence of
-  predictive improvement. The MLP candidates did not converge within the
-  configured 100 iterations.
+- MLP candidates still reach the configured 100-iteration limit without
+  convergence; the current selected model is Ridge regression. Treat the
+  resulting predictions as an initial benchmark, not a guarantee of predictive
+  improvement.
+- The `src.data.clean --seasons 2026` command expects completed schedules and
+  fails when the source includes future games without team stats. Step 5
+  therefore cleans only fully completed weeks before building forecast rows.
+- Future roster membership uses the latest available weekly roster snapshot;
+  later transactions are unknown until the forecast is refreshed. Player/team
+  history is held at the latest completed week across each projected week.
+- No verifiable timestamps exist in the 2026 injury feed, so injury features
+  are unknown rather than interpreted as healthy.
+- Strict-preseason forecasts intentionally omit 2026 matchup history and
+  injury information and retain the Week 1 roster for every week; they are
+  season-start projections, not live rest-of-season projections.
+- Synthetic zero-fill rows do not inform player performance-history features,
+  but remain zero-valued training outcomes to represent missed fantasy weeks.
+- Starter status is approximated by FantasyPros position ranks within each
+  team's player pool, not an official depth chart. Unranked players fill
+  remaining slots by conditional score.
 - The two-thirds bench weight is arbitrary and has not yet been validated.
 - The abstract deadline year and any additional formatting or disclosure rules
   need confirmation from the course schedule or instructor.
@@ -209,7 +326,8 @@
 
 - Resolve the open decisions listed in `PROJECT_OUTLINE.md`.
 - Confirm course-specific deadline and submission details omitted from the screenshot.
-- Proceed to Step 5: use the trained model to generate weekly predictions and
-  aggregate them into rest-of-season player values. Retain the Step 4 test
-  comparison and investigate model limitations without tuning on 2025.
+- Proceed to Step 6: aggregate the appropriate Step 5 weekly projection file
+  into player values using `predicted_full_ppr_points`, preserve the Step 4
+  baseline comparison, and document whether the live or strict-preseason
+  forecast is used.
 - Keep this file synchronized with future milestones, validation results, and remaining work.
