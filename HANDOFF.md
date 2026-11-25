@@ -86,6 +86,25 @@
   `tests/test_build_features.py`.
 - Step 2 files changed: `.gitignore`, `AGENTS.md`, `HANDOFF.md`,
   `PROJECT_OUTLINE.md`, `src/data/clean.py`, and `tests/test_clean.py`.
+- Implemented the initial Step 4 supervised regression pipeline in
+  `src/models/train.py`. It compares position-mean, previous-week, and rolling
+  score baselines against Ridge regression and a 32-unit MLP, with/without
+  injury features, using 2021–2023 training, 2024 validation, and a final
+  2025 test. The winning validation candidate is refit on 2021–2024.
+- The full data run selected Ridge (`alpha=10`, injury features included).
+  Validation MAE/RMSE were 3.429/5.222; 2025 test MAE/RMSE were 4.060/5.872.
+  The selected model beat the best validation baseline by MAE, but its 2025
+  test MAE was worse than the rolling 3-/5-week baselines (3.407/3.407).
+  Preserve this holdout result; do not retune against 2025.
+- Step 4 uses a training-fitted preprocessing pipeline: numeric median
+  imputation and standardization, categorical imputation and one-hot encoding.
+  The reference model, metrics, and prediction artifacts are included under
+  `models/`; future generated files there remain ignored by default.
+- Added `pandas` and `scikit-learn` dependencies and corrected `.gitignore` to
+  ignore only root-level generated `models/`, so the Python source package
+  `src/models/` remains trackable.
+- Added an end-to-end Step 4 regression test for chronological splits and
+  artifact generation. It shortens MLP iterations for test speed.
 
 ## Verification
 
@@ -144,6 +163,17 @@
 - `.\.venv\Scripts\python.exe -m pytest -q` passes (14 tests), including
   cross-season history, rank fallback and cutoff behavior, injury cutoff,
   unmatched-player flags, and D/ST rank mapping.
+- `.\.venv\Scripts\python.exe -m pip install -r requirements.txt` completed;
+  `.\.venv\Scripts\python.exe -m pip check` reports no broken requirements.
+- `.\.venv\Scripts\python.exe -m pytest -q tests/test_train_model.py` passes
+  (1 test); `.\.venv\Scripts\python.exe -m pytest -q` passes (15 tests).
+- `.\.venv\Scripts\python.exe -m src.models.train --feature-path
+  data\processed\player_week_features_2021-2022-2023-2024-2025.parquet
+  --output-dir models` completed. It selected `ridge_alpha_10_with_injury`,
+  with validation MAE 3.429 and 2025 test MAE 4.060. The rolling 3-/5-week
+  baselines scored test MAE 3.407/3.407, so the selected model did not beat
+  those baselines on the held-out season. Both MLP candidates reached the
+  100-iteration limit without convergence.
 - `git diff --check` passes.
 
 ## Known Issues
@@ -167,6 +197,10 @@
   weeks); matchup windows use prior team games.
 - The manual roster input format has not been selected.
 - Roster slots and prediction horizon have not been finalized.
+- The Step 4 Ridge model did not outperform the rolling-score baselines on the
+  held-out 2025 season; treat it as an initial benchmark, not evidence of
+  predictive improvement. The MLP candidates did not converge within the
+  configured 100 iterations.
 - The two-thirds bench weight is arbitrary and has not yet been validated.
 - The abstract deadline year and any additional formatting or disclosure rules
   need confirmation from the course schedule or instructor.
@@ -175,6 +209,7 @@
 
 - Resolve the open decisions listed in `PROJECT_OUTLINE.md`.
 - Confirm course-specific deadline and submission details omitted from the screenshot.
-- Begin Step 4 with a weekly-score baseline, then train and evaluate regression
-  models using chronological splits.
+- Proceed to Step 5: use the trained model to generate weekly predictions and
+  aggregate them into rest-of-season player values. Retain the Step 4 test
+  comparison and investigate model limitations without tuning on 2025.
 - Keep this file synchronized with future milestones, validation results, and remaining work.

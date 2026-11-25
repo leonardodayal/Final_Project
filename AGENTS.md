@@ -25,6 +25,8 @@ Collect and clean the history-only season first with
 `python -m src.data.clean --seasons 2020`.
 Build leakage-safe prediction features with
 `python -m src.features.build --seasons 2021 2022 --history-seasons 2020`.
+Train and evaluate weekly-score regression models with
+`python -m src.models.train --feature-path data\processed\player_week_features_2021-2022-2023-2024-2025.parquet --output-dir models`.
 
 ## Coding Style & Naming Conventions
 

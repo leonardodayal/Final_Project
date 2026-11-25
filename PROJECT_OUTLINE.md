@@ -165,23 +165,34 @@ week to prevent data leakage.
 - Position-level average
 - Rest-of-season value based on a simple per-game average
 
-### Candidate Regression Models
+### Step 4: Weekly-Score Regression
 
-- Linear or regularized linear regression
-- Random forest regression
-- Gradient-boosted tree regression
+The initial supervised-learning target is a player's full-PPR score in a
+specific week. This is a regression task, not reinforcement learning: there is
+no sequential agent action or reward-driven environment interaction. This
+distinction follows Sutton and Barto, Chapter 1. The model methods connect to
+Bishop and Bishop's course material on linear regression and bias-variance
+(Chapter 4), neural networks and error functions (Chapter 6), gradient descent
+(Chapter 7), backpropagation (Chapter 8), and regularization (Chapter 9).
 
-Begin with interpretable baselines and add model complexity only when validation
-results justify it.
+Compare these baselines: position mean, previous-week score, and rolling
+3-/5-week score averages. Train Ridge regression over alpha values 0.1, 1, and
+10 and a small one-hidden-layer (32-unit, ReLU) multilayer perceptron. Compare
+each learned model with and without injury features as an ablation. Numeric
+inputs use training-only median imputation and standard scaling; categorical
+inputs use training-only missing-value imputation and one-hot encoding.
 
-### Evaluation
+Use the 2021–2023 seasons for training, 2024 for validation and model selection,
+then refit the selected model on 2021–2024 and evaluate once on the held-out
+2025 season. Report MAE and RMSE overall and by position; compare the held-out
+results with the simple baselines. Do not select or tune a model based on 2025
+test results.
 
-- Use chronological train, validation, and test splits.
-- Compare models using mean absolute error and root mean squared error.
-- Report results overall and separately by position.
-- Compare the learned models against the simple baselines.
-- Evaluate both weekly prediction accuracy and aggregated rest-of-season
-  accuracy.
+Run the pipeline with
+`python -m src.models.train --feature-path data\processed\player_week_features_2021-2022-2023-2024-2025.parquet --output-dir models`.
+It writes a serialized model, a JSON metrics report, and validation/test
+predictions under `models/`. The reference run's three small artifacts are
+checked in; future generated files remain ignored by default.
 
 ## Rest-of-Season Player Value
 
