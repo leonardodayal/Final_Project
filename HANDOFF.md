@@ -23,8 +23,24 @@
   into rest-of-season player value.
 - Defined trade fairness as both teams improving after the simulated trade.
 - Set the provisional bench contribution to two-thirds of projected player value.
-- Selected ESPN as the supported fantasy platform and the Python `espn-api`
-  package as the primary data-collection interface.
+- Selected `nflreadpy` for public nflverse weekly player statistics,
+  FantasyPros historical rankings, and player-ID mappings; no ESPN league ID
+  or private credentials are required.
+- Added the Step 1 collector in `src/data/collect.py`; it downloads selected
+  seasons, saves Parquet files under `data/raw/`, and records collection
+  metadata. Generated raw files are ignored by Git.
+- Added `requirements.txt`, collector tests, and setup/collection commands to
+  `AGENTS.md`.
+- Installed Python 3.13 and project dependencies in the ignored `.venv/`.
+- Collected the five completed seasons 2021–2025 locally: 94,848 weekly
+  player-stat rows, 12,542 player-ID mappings, and 1,890,527 historical
+  ranking rows.
+- Step 1 raw collection is complete for the selected seasons; cleaning,
+  joining rankings, validating scoring rules, and classifying missing weeks
+  remain for Step 2.
+- Step 1 files changed: `.gitignore`, `AGENTS.md`, `HANDOFF.md`,
+  `PROJECT_OUTLINE.md`, `requirements.txt`, `src/__init__.py`,
+  `src/data/__init__.py`, `src/data/collect.py`, and `tests/test_collect.py`.
 - Scoped roster entry to manual input; private ESPN league synchronization and
   user credentials are not required for the school project.
 
@@ -40,13 +56,27 @@
   horizon, trade interpretation, bench weighting, and course deliverables.
 - Added the initial CSV roster template; no parser or player-matching logic has
   been implemented yet.
+- Reviewed `nflreadpy` loader documentation and confirmed it provides weekly
+  player stats, historical FantasyPros rankings, and player ID mappings.
+- Confirmed the 2021–2025 stats include `season`, `week`, `player_id`, and
+  `fantasy_points_ppr`, with no missing PPR values in any season.
+- Season row counts: 2021 (18,969), 2022 (18,831), 2023 (18,643), 2024
+  (18,983), and 2025 (19,422).
+- Confirmed ranking data includes weekly ranking categories and scrape dates
+  from 2019-12-27 through 2026-11-20.
+- `.\.venv\Scripts\python.exe -m src.data.collect --seasons 2021 2022 2023
+  2024 2025` completed successfully.
+- `.\.venv\Scripts\python.exe -m pytest -q` passes (3 tests);
+  `.\.venv\Scripts\python.exe -m pip check` reports no broken requirements;
+  `git diff --check` passes.
 
 ## Known Issues
 
-- The repository remains a minimal scaffold with no source code, dependency manifest, or test suite.
-- The historical fields available through `espn-api` have not been verified;
-  a public reference league or another source may be needed for model-training
-  features.
+- Historical ranking rows have `scrape_date`, `page_type`, and `ecr_type`
+  fields rather than explicit season/week fields; their alignment to player-week
+  stats still needs to be defined.
+- Verify that the source's `fantasy_points_ppr` calculation matches the
+  project's final full-PPR scoring rules.
 - The manual roster input format has not been selected.
 - Detailed scoring rules, roster slots, prediction horizon, and the treatment of
   injuries and bye weeks have not been finalized.
@@ -58,9 +88,7 @@
 
 - Resolve the open decisions listed in `PROJECT_OUTLINE.md`.
 - Confirm course-specific deadline and submission details omitted from the screenshot.
-- Establish the project structure and dependency tooling when implementation begins.
-- Add `espn-api` to the dependency manifest when implementation begins, then
-  audit its available league and historical player-week data.
+- Align historical rankings to the player-week data and document any gaps.
 - Build a small, leakage-safe player-week dataset.
 - Implement a weekly-score baseline before introducing more complex models.
 - Keep this file synchronized with future milestones, validation results, and remaining work.

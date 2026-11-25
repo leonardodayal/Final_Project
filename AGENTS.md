@@ -6,7 +6,8 @@ This repository is currently a minimal project scaffold; no source, test, or dat
 
 ## Build, Test, and Development Commands
 
-No build system or dependency manifest is configured. When Python dependencies are introduced, record them in `pyproject.toml` or `requirements.txt` and update this section. A typical local workflow should use:
+The project requires Python 3.10 or later. Dependencies are listed in
+`requirements.txt`. Set up and test the project with:
 
 ```bash
 python -m venv .venv
@@ -15,7 +16,9 @@ python -m pip install -r requirements.txt
 python -m pytest
 ```
 
-Run modules from the repository root, for example `python -m src.train`, so imports behave consistently. Do not document a command until its supporting configuration is committed.
+Run modules from the repository root, for example
+`python -m src.data.collect --seasons 2021 2022`, so imports behave
+consistently.
 
 ## Coding Style & Naming Conventions
 

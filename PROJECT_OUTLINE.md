@@ -10,11 +10,11 @@ trade improves both teams.
 ## Scope and Current Assumptions
 
 - The scoring format is full point per reception (full PPR).
-- ESPN is the supported fantasy platform.
-- Data collection will use the Python `espn-api` package where it provides the
-  required player and statistical data.
-- Users will enter both fantasy rosters manually; direct synchronization with an
-  ESPN league is outside the school-project scope.
+- Rosters are entered manually; the project does not require an ESPN league ID
+  or private league credentials.
+- Data collection will use the Python `nflreadpy` package to access public
+  nflverse player statistics and historical FantasyPros rankings.
+- Direct synchronization with a fantasy league is outside the project scope.
 - The model predicts future weekly fantasy scores.
 - A player's rest-of-season value is derived from their predicted scores over
   the remaining weeks of the season.
@@ -44,28 +44,17 @@ trade improves both teams.
 
 ### Primary Collection Interface
 
-Use the Python `espn-api` package to retrieve available ESPN fantasy football
-player and statistical data. Depending on package support, this may include:
+Use the Python `nflreadpy` package to retrieve public nflverse weekly player
+statistics, FantasyPros historical rankings, and player-ID crosswalks. The
+collector saves the downloaded data as local Parquet files and does not require
+an ESPN league ID. The package is currently marked experimental, so record the
+package version and data provenance when reporting results.
 
-- Matchups and box scores
-- Player information and available statistics
-- ESPN projections and fantasy point totals
-
-The package wraps ESPN's unofficial and undocumented Fantasy API, so collection
-code should isolate the dependency behind a small project module and preserve
-raw responses or normalized snapshots when practical. This reduces the impact
-of upstream endpoint or package changes.
-
-The project will not connect to a user's private ESPN league or collect ESPN
-credentials. If `espn-api` still requires a league context to access the desired
-player pool or history, development should use an appropriate public league or
-fixture and document that limitation.
-
-Before modeling begins, create a small data-availability experiment to verify
-which historical weekly fields `espn-api` provides for the selected league and
-seasons. If it does not expose enough historical features to train the weekly
-prediction model, document and add a separate approved football-statistics
-source rather than scraping data implicitly.
+The weekly player-stat dataset should include a player identifier, season,
+week, and full-PPR score. Verify these fields and the score calculation before
+using the data for modeling. Historical rankings are supplemental; if the
+source does not return them, document the gap rather than silently substituting
+another ranking source. Do not commit generated datasets to the repository.
 
 ### Candidate Inputs
 
@@ -78,8 +67,7 @@ source rather than scraping data implicitly.
 - Team offensive context
 - Opponent and matchup information
 - Injury status and bye weeks, if reliable historical data is available
-- ESPN fantasy rankings or projections for comparison, when available through
-  `espn-api`
+- Historical FantasyPros rankings, when available through `nflreadpy`
 
 ### Target Variable
 
@@ -219,11 +207,10 @@ tests/             Automated tests mirroring src/
 ## Initial Implementation Milestones
 
 1. Define league roster slots and exact full-PPR scoring rules.
-2. Add `espn-api` to the dependency manifest and implement a minimal ESPN league
-   data-collection experiment that does not require private credentials.
-3. Audit the ESPN fields and historical seasons available through `espn-api`.
-4. Document any additional data source needed for historical model features and
-   its licensing constraints.
+2. Add `nflreadpy` to the dependency manifest and collect weekly player stats,
+   historical rankings, and player-ID mappings for selected seasons.
+3. Audit the fields, season coverage, full-PPR scoring, and data provenance.
+4. Document any limitations in historical ranking coverage.
 5. Build and validate a small player-week dataset.
 6. Implement a simple rolling-average baseline.
 7. Train and compare the first regression models.
@@ -234,8 +221,8 @@ tests/             Automated tests mirroring src/
 
 ## Open Decisions
 
-- Does `espn-api` expose enough player history without private-league access, or
-  will the experiment require a public reference league?
+- Does the historical FantasyPros ranking data cover the same seasons and
+  players as the nflverse weekly player statistics?
 - What manual roster input format will be used: a Python structure, CSV file, or
   simple command-line prompts?
 - What exact project-wide full-PPR scoring configuration will be enforced?
@@ -268,10 +255,11 @@ These are project recommendations, not confirmed course requirements. Keep
 course-specific items open until they are checked against the current course
 materials.
 
-- **Data source:** First run the planned `espn-api` availability experiment.
-  If it cannot provide enough historical player-week data without private
-  credentials, use a public, documented football-statistics source approved for
-  the project and record its provenance and license.
+- **Data source:** Use `nflreadpy` for public nflverse player-week stats,
+  FantasyPros historical rankings, and player-ID mappings. No ESPN league ID or
+  private credentials are needed. Confirm source coverage, scoring fields, and
+  data provenance before modeling; leave rankings optional if coverage is
+  incomplete.
 - **Roster input:** Use a small CSV with one row per player and fields for team,
   player name, and position. Resolve players against a consistent player
   dataset and report ambiguous or unmatched names rather than silently
