@@ -18,7 +18,8 @@ python -m pytest
 
 Run modules from the repository root, for example
 `python -m src.data.collect --seasons 2021 2022`, so imports behave
-consistently.
+consistently. After collecting weekly stats, build the cleaned player-week
+dataset with `python -m src.data.clean --seasons 2021 2022`.
 
 ## Coding Style & Naming Conventions
 

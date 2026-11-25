@@ -56,6 +56,34 @@ using the data for modeling. Historical rankings are supplemental; if the
 source does not return them, document the gap rather than silently substituting
 another ranking source. Do not commit generated datasets to the repository.
 
+### Step 2: Cleaned Player-Week Dataset
+
+Run the cleaning pipeline after collecting the raw player stats:
+
+```bash
+python -m src.data.clean --seasons 2021 2022 2023 2024 2025
+```
+
+The pipeline keeps regular-season weeks, calculates ESPN standard full-PPR
+scores from stat components, and writes
+`data/processed/player_weekly_<seasons>.parquet`. It includes QB, RB, WR, TE,
+K, and D/ST rows; fullbacks are normalized to RB. Player rows retain their raw
+stat components and include `full_ppr_points`, a score-source label, a flag for
+observed stats, and a bye-week flag. The source PPR score is retained separately
+for auditing. ESPN-standard kicker scores are calculated from field-goal
+distance buckets, missed field goals, and made PATs. D/ST scores use sacks,
+turnovers, touchdowns, blocks, safeties, and the ESPN points-allowed tiers; an
+opponent defensive touchdown is excluded from points allowed, while special
+teams points remain included. Canceled games are marked separately from bye
+weeks; the canceled 2022 Bills-Bengals Week 17 matchup is scored as zero.
+
+Missing player rows are filled with zero only when a weekly roster confirms the
+player was on a regular-season roster with ACT, INA, or RES status. Development
+and cut players are excluded from this zero-fill universe. D/ST bye weeks are
+added as explicit zero-score rows. Historical rankings remain separate because
+their scrape dates do not yet establish a leakage-safe player-week alignment.
+Generated raw and processed datasets are not committed.
+
 ### Candidate Inputs
 
 - Historical weekly fantasy points
@@ -225,7 +253,6 @@ tests/             Automated tests mirroring src/
   players as the nflverse weekly player statistics?
 - What manual roster input format will be used: a Python structure, CSV file, or
   simple command-line prompts?
-- What exact project-wide full-PPR scoring configuration will be enforced?
 - Which roster slots and lineup limits will the calculator support?
 - Does the rest-of-season horizon include fantasy playoffs, and should playoff
   weeks receive different weights?
