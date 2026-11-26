@@ -179,6 +179,18 @@
   `src/models/roles.py`, `tests/test_build_features.py`,
   `tests/test_train_model.py`, and `tests/test_predict.py`. Generated
   2026 forecast Parquet/JSON files remain Git-ignored.
+- Implemented rest-of-season aggregation in `src/trades/values.py`, using the
+  unweighted `predicted_full_ppr_points_if_active` column so NFL-rank discounts
+  are not compounded with fantasy lineup weights.
+- Added CSV roster matching, the documented 1 QB / 2 RB / 2 WR / 1 TE / 1 FLEX /
+  1 D/ST / 1 K lineup, configurable bench weighting, and two-team trade
+  simulation in `src/trades/roster.py` and `src/trades/evaluate.py`.
+- Added `data/trade_template.csv`, a JSON-reporting CLI, input validation, and
+  synthetic end-to-end tests for lineup fit and trade outcomes.
+- The test suite now passes (32 tests), `pip check` reports no broken
+  requirements, and `git diff --check` passes.
+- Real-data trade evaluation has not been run: no generated weekly forecast,
+  completed roster CSV, or proposed trade CSV is available in this worktree.
 
 ## Verification
 
@@ -190,8 +202,14 @@
   assignment criteria.
 - Added proposed project defaults for data, roster input, scoring, prediction
   horizon, trade interpretation, bench weighting, and course deliverables.
-- Added the initial CSV roster template; no parser or player-matching logic has
-  been implemented yet.
+- Added the initial CSV roster template and implemented strict CSV parsing with
+  explicit errors for unmatched and ambiguous player names.
+- Implemented ROS aggregation, fantasy lineup optimization, bench-weighted team
+  strength, trade simulation, and JSON reporting in `src/trades/`.
+- Added `data/trade_template.csv` and documented the valuation/evaluation CLI
+  commands in `PROJECT_OUTLINE.md`.
+- The current full suite passes (32 tests); `pip check` and `git diff --check`
+  pass. Tests include synthetic end-to-end valuation and trade evaluation.
 - Reviewed `nflreadpy` loader documentation and confirmed it provides weekly
   player stats, historical FantasyPros rankings, and player ID mappings.
 - Confirmed the 2021–2025 stats include `season`, `week`, `player_id`, and
@@ -296,8 +314,11 @@
 - Player rolling windows use observed stat weeks only; target zero-fill rows
   are retained for actual fantasy outcomes. Matchup windows use prior team
   games.
-- The manual roster input format has not been selected.
-- Roster slots and prediction horizon have not been finalized.
+- The roster CSV supports one position per player and a single fixed lineup
+  configuration; multi-position eligibility and custom league slots are not
+  implemented.
+- Trade reports do not estimate prediction uncertainty, so small positive
+  deltas may not be meaningful.
 - MLP candidates still reach the configured 100-iteration limit without
   convergence; the current selected model is Ridge regression. Treat the
   resulting predictions as an initial benchmark, not a guarantee of predictive
@@ -326,8 +347,8 @@
 
 - Resolve the open decisions listed in `PROJECT_OUTLINE.md`.
 - Confirm course-specific deadline and submission details omitted from the screenshot.
-- Proceed to Step 6: aggregate the appropriate Step 5 weekly projection file
-  into player values using `predicted_full_ppr_points`, preserve the Step 4
-  baseline comparison, and document whether the live or strict-preseason
-  forecast is used.
+- Run the new valuation and trade-evaluation commands with generated weekly
+  forecasts and the project's real roster/trade CSVs.
+- Compare trade results across bench weights and decide whether to add a
+  validation-based uncertainty estimate.
 - Keep this file synchronized with future milestones, validation results, and remaining work.

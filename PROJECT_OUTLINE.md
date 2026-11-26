@@ -272,17 +272,21 @@ For player \(p\), define rest-of-season value as:
 ROS_value(p) = sum(predicted_weekly_score(p, week))
 ```
 
-The default sum uses the starter-weighted `predicted_full_ppr_points`, not the
-if-active-only column. It covers only the remaining fantasy-relevant weeks. A
-later iteration may adjust this value for uncertainty, injury risk, or
-playoff-week importance, but those adjustments are outside the initial scope.
+Sum `predicted_full_ppr_points_if_active` over the forecast weeks for each
+player. Do not use the model's `predicted_full_ppr_points` column here: its
+starter/backup multiplier is an NFL-roster approximation, while fantasy lineup
+and bench weighting are applied separately below. The weekly forecast already
+sets bye-week scores to zero. A later iteration may adjust this value for
+uncertainty, injury risk, or playoff-week importance; those adjustments are
+outside the initial scope.
 
 ## Team-Strength Calculation
 
-1. Accept two manually entered rosters and identify each player's eligible
-   positions.
-2. Place eligible players into the lineup that maximizes projected starter
-   value while respecting roster-position rules.
+1. Accept two manually entered CSV rosters with one fantasy position per
+   player.
+2. Fill the documented starting slots (1 QB, 2 RB, 2 WR, 1 TE, 1 RB/WR/TE FLEX,
+   1 D/ST, and 1 K) with the highest-value eligible players. Unfilled slots are
+   allowed when the submitted roster lacks an eligible player.
 3. Give each starter 100% of their rest-of-season value.
 4. Give each bench player 66.7% of their rest-of-season value.
 5. Sum the weighted player values to calculate team strength.
@@ -304,7 +308,7 @@ team_delta = team_strength_after_trade - team_strength_before_trade
 ```
 
 Classify a trade as mutually beneficial when both team deltas are greater than
-zero. The output should include:
+zero. The JSON output includes:
 
 - Each team's strength before the trade
 - Each team's strength after the trade
@@ -313,6 +317,45 @@ zero. The output should include:
 - Whether both teams improve
 - A warning when one or both changes are too small relative to model uncertainty
   to support a confident conclusion
+
+The current evaluator does not estimate model uncertainty; its report notes
+that small positive deltas may not be meaningful. It labels a trade mutually
+beneficial only when both deltas are strictly positive. A zero delta is neutral.
+
+## Running Rest-of-Season Valuation and Trade Evaluation
+
+Copy and fill `data/roster_template.csv` for the two fantasy rosters. Add one
+row per player using `team`, `player_name`, and `position`. Player names must
+match a unique player in the weekly forecast; unmatched or ambiguous names are
+errors. Supported positions are QB, RB, WR, TE, K, and DST (D/ST and DEF are
+accepted aliases).
+
+Copy and fill `data/trade_template.csv` with one row per traded player. The
+`from_team` value must match the player's current `team` value in the roster
+CSV. Both teams must send at least one player.
+
+Aggregate weekly forecasts to player values:
+
+```bash
+python -m src.trades.values \
+  --predictions models/weekly_predictions_2026.parquet \
+  --output data/processed/player_ros_values_2026.csv
+```
+
+Evaluate the proposed trade and write a JSON report:
+
+```bash
+python -m src.trades.evaluate \
+  --predictions models/weekly_predictions_2026.parquet \
+  --rosters data/rosters.csv \
+  --trade data/trade.csv \
+  --output reports/trade_evaluation_2026.json
+```
+
+The evaluator uses a two-thirds bench weight by default; `--bench-weight` can
+set another value between 0 and 1. Its before/after report includes each
+team's starters, bench, team strength, absolute and percentage delta, trade
+classification, and an uncertainty note.
 
 ## Testing Outline
 
@@ -323,7 +366,8 @@ zero. The output should include:
 - Test starter and bench assignment under roster constraints.
 - Test the two-thirds bench weighting.
 - Test team strength before and after a trade.
-- Test mutually beneficial, one-sided, and neutral trade classifications.
+- Test mutually beneficial, one-sided, neutral, and neither-improves trade
+  classifications.
 - Test reproducible model training with a fixed random seed.
 
 ## Suggested Repository Structure
@@ -370,24 +414,20 @@ tests/             Automated tests mirroring src/
 7. Train and compare the first regression models.
 8. Implement rest-of-season aggregation and lineup assignment.
 9. Implement weighted team strength and trade deltas.
-10. Produce an end-to-end example using two sample rosters.
+10. Add an end-to-end synthetic trade-evaluation test; run with real forecasts
+    and rosters when available.
 11. Add automated tests and document reproducible commands.
 
 ## Open Decisions
 
 - Does the historical FantasyPros ranking data cover the same seasons and
   players as the nflverse weekly player statistics?
-- What manual roster input format will be used: a Python structure, CSV file, or
-  simple command-line prompts?
-- Which roster slots and lineup limits will the calculator support?
 - Does the rest-of-season horizon include fantasy playoffs, and should playoff
   weeks receive different weights?
 - How should injury designations, expected missed games, and bye weeks affect
   weekly predictions?
-- Should a zero delta count as improvement, neutrality, or a failed fairness
-  condition?
-- How large must both improvements be before the trade is called meaningfully
-  beneficial rather than effectively even?
+- What uncertainty method should be used to distinguish meaningful positive
+  trade deltas from changes within model error?
 - Should the two-thirds bench weight be fixed, tuned using historical outcomes,
   or compared against several candidate weights?
 - What year does the course's October 9 abstract deadline refer to, and is that
