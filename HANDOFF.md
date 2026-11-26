@@ -187,10 +187,38 @@
   simulation in `src/trades/roster.py` and `src/trades/evaluate.py`.
 - Added `data/trade_template.csv`, a JSON-reporting CLI, input validation, and
   synthetic end-to-end tests for lineup fit and trade outcomes.
-- The test suite now passes (32 tests), `pip check` reports no broken
+- The test suite now passes (43 tests), `pip check` reports no broken
   requirements, and `git diff --check` passes.
 - Real-data trade evaluation has not been run: no generated weekly forecast,
   completed roster CSV, or proposed trade CSV is available in this worktree.
+- Started `feat/trade-calculator-app` from the trade-evaluation branch.
+- Expanded the Streamlit app to generate 2026 weekly projections using the
+  existing model and public data pipeline, or load a CSV/Parquet forecast.
+- Added manual player selection for both rosters and trade sides, while keeping
+  CSV roster/trade uploads as an alternative. The app displays weekly scores,
+  before/after lineup impact, and a downloadable JSON report.
+- Uploaded data remains in memory. Forecast generation requires the trained
+  model artifact; missing public inputs are downloaded and cached locally.
+- Added Streamlit to `requirements.txt` and a dark theme configuration in
+  `.streamlit/config.toml`.
+- Added tests for forecast input preparation/caching and manual player
+  validation/serialization. The full suite passes (43 tests), `pip check` is
+  clean, and a local Streamlit smoke test returned HTTP 200.
+- App changes are uncommitted on `feat/trade-calculator-app`; the pre-existing
+  `.DS_Store` modification is unrelated and remains untouched.
+- Code review found no blocking issues. The lineup detail now includes bench
+  players as well as starters so the displayed roster matches the strength
+  calculation.
+- Final validation: `.venv/bin/python -m pytest -q` (43 passed),
+  `.venv/bin/python -m pip check` (clean), Python compilation,
+  `git diff --check`, and a local app request (HTTP 200).
+- No live forecast was generated during this review; first-time generation may
+  download public data and requires the local trained model artifact.
+- `origin/main` is seven commits behind this branch. Pushing this branch to
+  `main` will include the existing data, feature, model, and trade-evaluation
+  commits as well as the app changes. The untracked `app 2.py` and `.DS_Store`
+  are not part of the planned commit.
+- Next step: commit the app workflow and push the branch to `origin/main`.
 
 ## Verification
 

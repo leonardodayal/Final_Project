@@ -357,6 +357,22 @@ set another value between 0 and 1. Its before/after report includes each
 team's starters, bench, team strength, absolute and percentage delta, trade
 classification, and an uncertainty note.
 
+## Local Trade Calculator App
+
+Start the browser app from the repository root:
+
+```bash
+streamlit run app.py
+```
+
+The app can generate 2026 weekly projections with the trained model and public
+data pipeline, or load an existing forecast in CSV or Parquet format. Enter
+both rosters and each side's outgoing players manually, or upload the roster and
+trade CSV templates described above. The app displays weekly player scores,
+before/after lineups and team strengths, the trade classification, and a
+downloadable JSON report. Uploaded files are processed in memory and are not
+written to the repository; generated public inputs are cached under `data/`.
+
 ## Testing Outline
 
 - Test full-PPR scoring calculations.

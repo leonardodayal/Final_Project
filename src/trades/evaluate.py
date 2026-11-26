@@ -4,6 +4,7 @@ import argparse
 import csv
 import json
 from pathlib import Path
+from typing import TextIO
 
 import polars as pl
 
@@ -21,24 +22,26 @@ from src.trades.values import PROJECTION_COLUMN, aggregate_rest_of_season_values
 TRADE_COLUMNS = {"from_team", "player_name"}
 
 
-def _read_trade(path: Path) -> list[dict[str, str]]:
-    with path.open(newline="", encoding="utf-8-sig") as file:
-        reader = csv.DictReader(file)
-        if reader.fieldnames is None or not TRADE_COLUMNS.issubset(
-            reader.fieldnames
-        ):
+def _read_trade(source: Path | TextIO) -> list[dict[str, str]]:
+    if isinstance(source, Path):
+        with source.open(newline="", encoding="utf-8-sig") as file:
+            return _parse_trade_file(file)
+    return _parse_trade_file(source)
+
+
+def _parse_trade_file(file: TextIO) -> list[dict[str, str]]:
+    reader = csv.DictReader(file)
+    if reader.fieldnames is None or not TRADE_COLUMNS.issubset(reader.fieldnames):
+        raise ValueError("Trade CSV must contain from_team and player_name columns.")
+    rows = []
+    for line_number, row in enumerate(reader, start=2):
+        team = (row.get("from_team") or "").strip()
+        name = (row.get("player_name") or "").strip()
+        if not team or not name:
             raise ValueError(
-                "Trade CSV must contain from_team and player_name columns."
+                f"Trade CSV row {line_number} has an empty required value."
             )
-        rows = []
-        for line_number, row in enumerate(reader, start=2):
-            team = (row.get("from_team") or "").strip()
-            name = (row.get("player_name") or "").strip()
-            if not team or not name:
-                raise ValueError(
-                    f"Trade CSV row {line_number} has an empty required value."
-                )
-            rows.append({"from_team": team, "player_name": name})
+        rows.append({"from_team": team, "player_name": name})
     if not rows:
         raise ValueError("Trade CSV contains no player transfers.")
     return rows
@@ -79,8 +82,8 @@ def _lineup_entry(entry: LineupPlayer) -> dict:
 
 def evaluate_trade(
     predictions: pl.DataFrame,
-    roster_path: Path,
-    trade_path: Path,
+    roster_path: Path | TextIO,
+    trade_path: Path | TextIO,
     bench_weight: float = BENCH_WEIGHT,
 ) -> dict:
     """Return before/after team strengths and the trade classification."""

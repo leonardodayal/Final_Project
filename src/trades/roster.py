@@ -3,6 +3,7 @@
 import csv
 from dataclasses import dataclass, replace
 from pathlib import Path
+from typing import TextIO
 
 import polars as pl
 
@@ -51,44 +52,46 @@ def normalize_player_name(name: str) -> str:
     return " ".join(name.casefold().split())
 
 
-def _read_roster_rows(path: Path) -> list[dict[str, str]]:
-    with path.open(newline="", encoding="utf-8-sig") as file:
-        reader = csv.DictReader(file)
-        if reader.fieldnames is None or not ROSTER_COLUMNS.issubset(
-            reader.fieldnames
-        ):
+def _read_roster_rows(source: Path | TextIO) -> list[dict[str, str]]:
+    if isinstance(source, Path):
+        with source.open(newline="", encoding="utf-8-sig") as file:
+            return _parse_roster_file(file)
+    return _parse_roster_file(source)
+
+
+def _parse_roster_file(file: TextIO) -> list[dict[str, str]]:
+    reader = csv.DictReader(file)
+    if reader.fieldnames is None or not ROSTER_COLUMNS.issubset(reader.fieldnames):
+        raise ValueError(
+            "Roster CSV must contain team, player_name, and position columns."
+        )
+    rows = []
+    for line_number, row in enumerate(reader, start=2):
+        team = (row.get("team") or "").strip()
+        name = (row.get("player_name") or "").strip()
+        position = (row.get("position") or "").strip()
+        if not team or not name or not position:
             raise ValueError(
-                "Roster CSV must contain team, player_name, and position columns."
+                f"Roster CSV row {line_number} has an empty required value."
             )
-        rows = []
-        for line_number, row in enumerate(reader, start=2):
-            team = (row.get("team") or "").strip()
-            name = (row.get("player_name") or "").strip()
-            position = (row.get("position") or "").strip()
-            if not team or not name or not position:
-                raise ValueError(
-                    f"Roster CSV row {line_number} has an empty required value."
-                )
-            try:
-                normalized_position = normalize_position(position)
-            except ValueError as error:
-                raise ValueError(
-                    f"Roster CSV row {line_number}: {error}"
-                ) from error
-            rows.append(
-                {
-                    "team": team,
-                    "player_name": name,
-                    "position": normalized_position,
-                }
-            )
+        try:
+            normalized_position = normalize_position(position)
+        except ValueError as error:
+            raise ValueError(f"Roster CSV row {line_number}: {error}") from error
+        rows.append(
+            {
+                "team": team,
+                "player_name": name,
+                "position": normalized_position,
+            }
+        )
     if not rows:
         raise ValueError("Roster CSV contains no players.")
     return rows
 
 
 def match_roster(
-    roster_path: Path,
+    roster_source: Path | TextIO,
     player_values: pl.DataFrame,
 ) -> dict[str, list[RosterPlayer]]:
     """Resolve roster names against forecasts; reject missing/ambiguous matches."""
@@ -108,7 +111,7 @@ def match_roster(
 
     teams: dict[str, list[RosterPlayer]] = {}
     roster_player_ids: set[str] = set()
-    for row in _read_roster_rows(roster_path):
+    for row in _read_roster_rows(roster_source):
         key = (normalize_player_name(row["player_name"]), row["position"])
         matches = by_name_position.get(key, [])
         if not matches:

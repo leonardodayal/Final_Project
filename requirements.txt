@@ -3,3 +3,4 @@ polars<2
 pytest>=7.0
 pandas>=2.2
 scikit-learn>=1.6
+streamlit>=1.40

@@ -10,6 +10,7 @@ from src.trades.roster import (
     assign_lineup,
     match_roster,
 )
+from src.trades.uploads import read_csv_upload
 from src.trades.values import aggregate_rest_of_season_values, main as values_main
 
 
@@ -146,6 +147,23 @@ def test_trade_evaluation_reports_one_sided_result(tmp_path) -> None:
     assert report["teams"][0]["delta"] == -20.0
     assert report["teams"][1]["delta"] == 20.0
     assert report["projection_column"] == "predicted_full_ppr_points_if_active"
+
+
+def test_trade_evaluation_accepts_in_memory_csv_uploads() -> None:
+    roster = read_csv_upload(
+        b"team,player_name,position\n"
+        b"Team A,Quarterback Alpha,QB\n"
+        b"Team A,Runner Alpha,RB\n"
+        b"Team B,Quarterback Beta,QB\n"
+        b"Team B,Runner Beta,RB\n"
+    )
+    trade = read_csv_upload(
+        b"from_team,player_name\nTeam A,Runner Alpha\nTeam B,Runner Beta\n"
+    )
+
+    report = evaluate_trade(_predictions(), roster, trade)
+
+    assert report["trade_classification"] == "one_sided"
 
 
 def test_trade_evaluation_detects_mutual_lineup_improvement(tmp_path) -> None:
