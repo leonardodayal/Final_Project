@@ -204,8 +204,8 @@
 - Added tests for forecast input preparation/caching and manual player
   validation/serialization. The full suite passes (43 tests), `pip check` is
   clean, and a local Streamlit smoke test returned HTTP 200.
-- App changes are uncommitted on `feat/trade-calculator-app`; the pre-existing
-  `.DS_Store` modification is unrelated and remains untouched.
+- The app workflow is committed locally on `feat/trade-calculator-app` as
+  `3404af1` (`Build weekly projection trade calculator app`).
 - Code review found no blocking issues. The lineup detail now includes bench
   players as well as starters so the displayed roster matches the strength
   calculation.
@@ -214,11 +214,12 @@
   `git diff --check`, and a local app request (HTTP 200).
 - No live forecast was generated during this review; first-time generation may
   download public data and requires the local trained model artifact.
-- `origin/main` is seven commits behind this branch. Pushing this branch to
-  `main` will include the existing data, feature, model, and trade-evaluation
-  commits as well as the app changes. The untracked `app 2.py` and `.DS_Store`
-  are not part of the planned commit.
-- Next step: commit the app workflow and push the branch to `origin/main`.
+- `origin/main` is eight commits behind this branch: seven existing project
+  commits plus the app implementation. Pushing this branch to `main` will
+  include the existing data, feature, model, and trade-evaluation commits as
+  well as the app changes. The untracked `app 2.py` and `.DS_Store` are not
+  part of the planned commits.
+- Next step: push the reviewed branch to `origin/main`.
 
 ## Verification
 
